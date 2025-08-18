@@ -3,6 +3,8 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"log/slog"
+	"os"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -97,9 +99,27 @@ func (s ParcelService) Delete(number int) error {
 }
 
 func main() {
-	// настройте подключение к БД
+	file, err := os.OpenFile("8th.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
 
-	store := // создайте объект ParcelStore функцией NewParcelStore
+	logger := slog.New(slog.NewTextHandler(file, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+	slog.SetDefault(logger)
+
+	// настройте подключение к БД
+	db, err := sql.Open("sqlite", "tracker.db")
+	if err != nil {
+		slog.Error("не удалось открыть базу данных", "err", err)
+		os.Exit(1)
+	}
+	slog.Info("соединение с базой данных прошло успешно")
+	defer db.Close()
+
+	store := NewParcelStore(db) // создайте объект ParcelStore функцией NewParcelStore
 	service := NewParcelService(store)
 
 	// регистрация посылки
@@ -107,7 +127,7 @@ func main() {
 	address := "Псков, д. Пушкина, ул. Колотушкина, д. 5"
 	p, err := service.Register(client, address)
 	if err != nil {
-		fmt.Println(err)
+		slog.Error("ошибка при регистрации посылки", "err", err)
 		return
 	}
 
@@ -115,28 +135,28 @@ func main() {
 	newAddress := "Саратов, д. Верхние Зори, ул. Козлова, д. 25"
 	err = service.ChangeAddress(p.Number, newAddress)
 	if err != nil {
-		fmt.Println(err)
+		slog.Error("ошибка при изменении адреса", "err", err)
 		return
 	}
 
 	// изменение статуса
 	err = service.NextStatus(p.Number)
 	if err != nil {
-		fmt.Println(err)
+		slog.Error("ошибка при именении статуса", "err", err)
 		return
 	}
 
 	// вывод посылок клиента
 	err = service.PrintClientParcels(client)
 	if err != nil {
-		fmt.Println(err)
+		slog.Error("ошибка при выводе посылок клиента", "err", err)
 		return
 	}
 
 	// попытка удаления отправленной посылки
 	err = service.Delete(p.Number)
 	if err != nil {
-		fmt.Println(err)
+		slog.Error("ошибка при удалении отправленной посылки", "err", err)
 		return
 	}
 
@@ -144,21 +164,21 @@ func main() {
 	// предыдущая посылка не должна удалиться, т.к. её статус НЕ «зарегистрирована»
 	err = service.PrintClientParcels(client)
 	if err != nil {
-		fmt.Println(err)
+		slog.Error("ошибка при выводе посылок клиента", "err", err)
 		return
 	}
 
 	// регистрация новой посылки
 	p, err = service.Register(client, address)
 	if err != nil {
-		fmt.Println(err)
+		slog.Error("ошибка при регистрации новой посылки", "err", err)
 		return
 	}
 
 	// удаление новой посылки
 	err = service.Delete(p.Number)
 	if err != nil {
-		fmt.Println(err)
+		slog.Error("ошибка при удалении новой посылки", "err", err)
 		return
 	}
 
@@ -166,7 +186,7 @@ func main() {
 	// здесь не должно быть последней посылки, т.к. она должна была успешно удалиться
 	err = service.PrintClientParcels(client)
 	if err != nil {
-		fmt.Println(err)
+		slog.Error("ошибка при выводе посылок клиента", "err", err)
 		return
 	}
 }
