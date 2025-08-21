@@ -33,9 +33,7 @@ func getTestParcel() Parcel {
 func TestAddGetDelete(t *testing.T) {
 	// prepare
 	db, err := sql.Open("sqlite", "tracker.db")
-	if err != nil {
-		assert.NoError(t, err)
-	}
+	require.NoError(t, err)
 	defer db.Close()
 	store := NewParcelStore(db)
 	parcel := getTestParcel()
@@ -51,10 +49,10 @@ func TestAddGetDelete(t *testing.T) {
 	// проверьте, что значения всех полей в полученном объекте совпадают со значениями полей в переменной parcel
 	get, err := store.Get(id)
 	assert.NoError(t, err)
-	assert.Equal(t, parcel.Client, get.Client)
-	assert.Equal(t, parcel.Status, get.Status)
-	assert.Equal(t, parcel.Address, get.Address)
-	assert.Equal(t, parcel.CreatedAt, get.CreatedAt)
+	
+	expected := parcel
+	expected.Number = get.Number
+	assert.Equal(t, expected, get)
 
 	// delete
 	// удалите добавленную посылку, убедитесь в отсутствии ошибки
@@ -69,9 +67,7 @@ func TestAddGetDelete(t *testing.T) {
 func TestSetAddress(t *testing.T) {
 	// prepare
 	db, err := sql.Open("sqlite", "tracker.db")
-	if err != nil {
-		assert.NoError(t, err)
-	}
+	require.NoError(t, err)
 	defer db.Close()
 	store := NewParcelStore(db)
 	parcel := getTestParcel()
@@ -98,9 +94,7 @@ func TestSetAddress(t *testing.T) {
 func TestSetStatus(t *testing.T) {
 	// prepare
 	db, err := sql.Open("sqlite", "tracker.db")
-	if err != nil {
-		assert.NoError(t, err)
-	}
+	require.NoError(t, err)
 	defer db.Close()
 	store := NewParcelStore(db)
 	parcel := getTestParcel()
@@ -127,9 +121,7 @@ func TestSetStatus(t *testing.T) {
 func TestGetByClient(t *testing.T) {
 	// prepare
 	db, err := sql.Open("sqlite", "tracker.db")
-	if err != nil {
-		assert.NoError(t, err)
-	}
+	require.NoError(t, err)
 	defer db.Close()
 	store := NewParcelStore(db)
 
@@ -174,9 +166,8 @@ func TestGetByClient(t *testing.T) {
 		// убедитесь, что значения полей полученных посылок заполнены верно
 		exp, ok := parcelMap[parcel.Number]
 		assert.True(t, ok)
-		assert.Equal(t, exp.Client, parcel.Client)
-		assert.Equal(t, exp.Status, parcel.Status)
-		assert.Equal(t, exp.Address, parcel.Address)
-		assert.Equal(t, exp.CreatedAt, parcel.CreatedAt)
+		
+		exp.Number = parcel.Number
+		assert.Equal(t, exp, parcel)
 	}
 }

@@ -24,12 +24,11 @@ func (s ParcelStore) Add(p Parcel) (int, error) {
 		sql.Named("Created_at", p.CreatedAt),
 	)
 	if err != nil {
-		slog.Error("не удалось добавить строку в таблицу", "err", err)
+		return 0, err
 	}
 	// верните идентификатор последней добавленной записи
 	id, err := res.LastInsertId()
 	if err != nil {
-		slog.Error("не удалось получить идентификатор последней записи", "err", err)
 		return 0, err
 	}
 	slog.Info("добавлена новая посылка", "id", id, "number", p.Number)
@@ -63,7 +62,6 @@ func (s ParcelStore) GetByClient(client int) ([]Parcel, error) {
 	                      FROM parcel WHERE client = :client`,
 		sql.Named("client", client))
 	if err != nil {
-		slog.Error("не удалось выполнить запрос GetByClient", "err", err, "по клиенту", client)
 		return nil, err
 	}
 	defer rows.Close()
@@ -73,10 +71,13 @@ func (s ParcelStore) GetByClient(client int) ([]Parcel, error) {
 	for rows.Next() {
 		var p Parcel
 		if err := rows.Scan(&p.Number, &p.Client, &p.Status, &p.Address, &p.CreatedAt); err != nil {
-			slog.Error("не удалось считать строку", "err", err)
 			return nil, err
 		}
 		res = append(res, p)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	slog.Info("получены посылки по клиенту", "client", client)
@@ -92,7 +93,6 @@ func (s ParcelStore) SetStatus(number int, status string) error {
 		sql.Named("status", status),
 		sql.Named("number", number))
 	if err != nil {
-		slog.Error("не выполнить запрос SetStatus", "err", err)
 		return err
 	}
 
@@ -108,30 +108,14 @@ func (s ParcelStore) SetStatus(number int, status string) error {
 func (s ParcelStore) SetAddress(number int, address string) error {
 	// реализуйте обновление адреса в таблице parcel
 	// менять адрес можно только если значение статуса registered
-	var status string
-	row := s.db.QueryRow("SELECT status FROM parcel WHERE number = :number", sql.Named("number", number))
-	err := row.Scan(&status)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			slog.Error("посылка не найдена", "number", number)
-			return err
-		}
-		slog.Error("не удалось прочитать статус посылки", "err", err)
-		return err
-	}
-
-	if status != ParcelStatusRegistered {
-		slog.Info("адрес нельзя изменить, статус не registered")
-		return nil
-	}
-
+	
 	res, err := s.db.Exec(`UPDATE parcel
 	                       SET address = :address
-												 WHERE number = :number`,
+												 WHERE number = :number AND status = :status`,
 		sql.Named("address", address),
-		sql.Named("number", number))
+		sql.Named("number", number),
+		sql.Named("status", ParcelStatusRegistered))
 	if err != nil {
-		slog.Error("не удалось обновить адрес", "err", err)
 		return err
 	}
 
@@ -144,33 +128,13 @@ func (s ParcelStore) SetAddress(number int, address string) error {
 func (s ParcelStore) Delete(number int) error {
 	// реализуйте удаление строки из таблицы parcel
 	// удалять строку можно только если значение статуса registered
-	var status string
-
-	row := s.db.QueryRow(`SELECT status
-	                      FROM parcel
-												WHERE number = :number`,
-		sql.Named("number", number))
-	err := row.Scan(&status)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			slog.Error("посылка не найдена", "number", number)
-			return err
-		}
-		slog.Error("не удалось прочитать статус посылки", "err", err)
-		return err
-	}
-
-	if status != ParcelStatusRegistered {
-		slog.Info("адрес нельзя удалить, статус не registered")
-		return nil
-	}
 
 	res, err := s.db.Exec(
-		`DELETE FROM parcel WHERE number = :number`,
+		`DELETE FROM parcel WHERE number = :number AND status = :status`,
 		sql.Named("number", number),
+		sql.Named("status", ParcelStatusRegistered),
 	)
 	if err != nil {
-		slog.Error("не удалось удалить посылку", "err", err, "number", number)
 		return err
 	}
 
